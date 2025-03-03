@@ -23,6 +23,7 @@ const socket = io(SOCKET_URL, {
   extraHeaders: SOCKET_HEADERS,
   pingInterval: 1500,
   pingTimeout: 3000,
+  secure: true 
 });
 
 require('./sockets')(socket);

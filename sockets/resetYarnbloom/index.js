@@ -1,4 +1,3 @@
-/* sockets/resetYarnbloom/index.js */
 const YarnbloomCatch = require('../../models/YarnbloomCatch');
 const UpcomingYarn = require('../../models/UpcomingYarn');
 const User = require('../../models/User');
@@ -43,22 +42,40 @@ module.exports = (socket) => {
       console.log(`${username} harvested a ${catchColor} yarnbloom`);
       
       await User.updateOne({ username }, { $inc: { totalYarnbloomsCaught: 1 } });
-      
+
       if (eventObj.yarnbloomData && eventObj.yarnbloomData.x !== undefined && eventObj.yarnbloomData.y !== undefined) {
         const upcomingColor = eventObj.yarnbloomData.color
           ? eventObj.yarnbloomData.color.trim().toLowerCase()
           : "";
-        const lastCollectedTime = eventObj.yarnbloomData.lastCollectedTime
-          ? new Date(eventObj.yarnbloomData.lastCollectedTime)
-          : undefined;
-        const state = eventObj.yarnbloomData.state;
-        
-        await UpcomingYarn.updateOne(
-          { x: eventObj.yarnbloomData.x, y: eventObj.yarnbloomData.y },
-          { $set: { color: upcomingColor, lastCollectedTime: new Date(), state: state } },
-          { upsert: true }
-        );
-        console.log(`Upcoming yarns have been successfully updated`);
+
+        const MAX_RETRIES = 5;
+        let attempt = 0;
+        let success = false;
+
+        while (attempt < MAX_RETRIES && !success) {
+          try {
+            const result = await UpcomingYarn.updateOne(
+              { x: eventObj.yarnbloomData.x, y: eventObj.yarnbloomData.y, state: 4 },
+              { $set: { color: upcomingColor, lastCollectedTime: new Date(), state: 0 } },
+              { upsert: true }
+            );
+
+            if (result.modifiedCount > 0) {
+              success = true;
+              console.log(`Yarnbloom at (${eventObj.yarnbloomData.x}, ${eventObj.yarnbloomData.y}) successfully reset to 0.`);
+            } else {
+              throw new Error("Update conflict detected, retrying...");
+            }
+          } catch (error) {
+            attempt++;
+            if (attempt < MAX_RETRIES) {
+              console.warn(`Retry ${attempt}/${MAX_RETRIES} for resetting yarnbloom due to conflict.`);
+              await new Promise(resolve => setTimeout(resolve, 50));
+            } else {
+              console.error("Failed to reset Yarnbloom after multiple attempts:", error);
+            }
+          }
+        }
       }
     } catch (error) {
       console.error("Error processing resetYarnbloom event:", error);

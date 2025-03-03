@@ -9,7 +9,9 @@ const connectDB = async () => {
   }
 
   try {
-    await mongoose.connect(MONGO_URI);
+    await mongoose.connect(MONGO_URI, {
+      minPoolSize: 10
+    });
     console.log('Connected to MongoDB');
 
     await mongoose.connection.syncIndexes();
